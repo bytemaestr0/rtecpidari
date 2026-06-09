@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, Search, Edit, Phone, Video,
-  Send, Mic, Smile, Camera, Plus, CheckCheck, Check,
+  ChevronLeft, Search, Edit, Send, Mic, Plus,
 } from "lucide-react";
 
 /* ── Theme ─────────────────────────────────────────────────────── */
@@ -13,8 +12,8 @@ const T = {
   bgInput:    "#1C1C1E",
   bgSearch:   "#1C1C1E",
   bgBubbleIn: "#2C2C2E",
-  bgBubbleOut:"#1B84FF",   // slightly brighter blue matching screenshot
-  bgAvatar:   "#636366",
+  bgBubbleOut:"#34C759",   // green — SMS style like screenshot
+  bgAvatar:   "#3A3A5C",   // dark purple-ish like iOS default person avatar
   separator:  "rgba(255,255,255,0.08)",
   textPrim:   "#FFFFFF",
   textSec:    "#8E8E93",
@@ -24,20 +23,13 @@ const T = {
   unreadDot:  "#1B84FF",
 };
 
-const AVATARS = {
-  "7000":        { bg: "#636366", initials: "70" },
-  "7001":        { bg: "#636366", initials: "70" },
-  "Nica":        { bg: "#636366", initials: "N"  },
-  "Nova Poshta": { bg: "#636366", initials: "NP" },
-  "Orange MD":   { bg: "#636366", initials: "OR" },
-  "Google":      { bg: "#636366", initials: "G"  },
-};
-
 const sessionCodes = {};
 
 function fmt2(n) { return String(n).padStart(2, "0"); }
 function formatDateTime(date) {
-  return `${fmt2(date.getDate())}.${fmt2(date.getMonth()+1)}.${date.getFullYear()} ${fmt2(date.getHours())}:${fmt2(date.getMinutes())}`;
+  const data = `${fmt2(date.getDate())}.${fmt2(date.getMonth()+1)}.${date.getFullYear()}`;
+  const ora = `${fmt2(date.getHours())}:${fmt2(date.getMinutes())}`;
+  return { data, ora };
 }
 function buildReply(convId, userText) {
   if (!sessionCodes[convId]) {
@@ -47,13 +39,34 @@ function buildReply(convId, userText) {
   }
   const code = sessionCodes[convId].baseCode + sessionCodes[convId].count;
   const now = new Date();
-  const plus1 = new Date(now.getTime() + 3600000);
-  return `Bilet electronic nr.\n${userText}${code},\n Data ${formatDateTime(now)}, ${formatDateTime(plus1)}\nValabil 1 ora\nPret 7 MDL\n Numar de bord 2167`;
+  const dt = formatDateTime(now);
+  // Return structured object so we can highlight the ticket number
+  return {
+    type: "ticket",
+    userText,
+    code: `${userText}${code}`,
+    date: dt.data,
+    time: dt.ora,
+  };
 }
 
 const INITIAL_CONVERSATIONS = [
-  { id:1, name:"7000", preview:"", time:"", unread:0, messages:[] },
-  { id:2, name:"7001", preview:"", time:"", unread:0, messages:[] },
+  {
+    id:1, name:"7000", preview:"Bilet 21670021", time:"13:53", unread:0,
+    messages:[
+      { id:1, text:"2167", from:"me", time:"1:53 PM", status:"read" },
+      { id:2, text:"Solicitare in curs de procesare.", from:"them", time:"1:53 PM", status:"read" },
+      { id:3, msgType:"ticket", ticketData:{ userText:"2167", code:"21670021", date:"10.06.2026", time:"13:53" }, text:"Bilet 21670021", from:"them", time:"1:53 PM", status:"read" },
+    ],
+  },
+  {
+    id:2, name:"7001", preview:"Bilet 21670021", time:"13:53", unread:0,
+    messages:[
+      { id:1, text:"2167", from:"me", time:"1:53 PM", status:"read" },
+      { id:2, text:"Solicitare in curs de procesare.", from:"them", time:"1:53 PM", status:"read" },
+      { id:3, msgType:"ticket", ticketData:{ userText:"2167", code:"21670021", date:"10.06.2026", time:"13:53" }, text:"Bilet 21670021", from:"them", time:"1:53 PM", status:"read" },
+    ],
+  },
   {
     id:3, name:"Nica", preview:"vii maine sau nu?", time:"9:38 AM", unread:2,
     messages:[
@@ -88,20 +101,85 @@ const INITIAL_CONVERSATIONS = [
       { id:3, text:"Codul tau Google este 847 291. Nu il impartasi cu nimeni.", from:"them", time:"Ieri 2:17 PM", status:"read" },
     ],
   },
+  {
+    id:7, name:"Instagram", preview:"Codul tau Instagram este 392 817.", time:"Lun", unread:1,
+    messages:[
+      { id:1, text:"Instagram: Cineva a incercat sa se conecteze la contul tau. Daca nu esti tu, schimba parola.", from:"them", time:"Vin 9:14 AM", status:"read" },
+      { id:2, text:"Instagram: Codul tau de confirmare este 482 031. Nu il impartasi cu nimeni.", from:"them", time:"Vin 9:15 AM", status:"read" },
+      { id:3, text:"Instagram: Codul tau Instagram este 392 817.", from:"them", time:"Lun 11:03 AM", status:"delivered" },
+    ],
+  },
+  {
+    id:8, name:"Facebook", preview:"Foloseste 748 291 ca parola ta Facebook.", time:"Lun", unread:0,
+    messages:[
+      { id:1, text:"Facebook: A fost detectata o autentificare noua din Chisinau, Moldova. Nu esti tu? Securizeaza-ti contul.", from:"them", time:"Joi 4:22 PM", status:"read" },
+      { id:2, text:"Facebook: Foloseste 748 291 ca parola ta temporara Facebook. Nu o impartasi cu nimeni.", from:"them", time:"Lun 8:47 AM", status:"read" },
+    ],
+  },
+  {
+    id:9, name:"enter.md", preview:"Comanda ta #EN-40812 a fost confirmata.", time:"Mar", unread:2,
+    messages:[
+      { id:1, text:"enter.md: Comanda ta #EN-40812 a fost plasata cu succes. Total: 1.249 MDL. Livrare: 2-3 zile lucratoare.", from:"them", time:"Mar 10:05 AM", status:"read" },
+      { id:2, text:"enter.md: Comanda #EN-40812 este in curs de procesare. Vei fi notificat cand expedierea este confirmata.", from:"them", time:"Mar 10:31 AM", status:"delivered" },
+    ],
+  },
+  {
+    id:10, name:"999.md", preview:"Anuntul tau a fost activat.", time:"Mie", unread:0,
+    messages:[
+      { id:1, text:"999.md: Anuntul tau \"Apartament 2 camere, Botanica\" a fost publicat cu succes. ID: 28834712.", from:"them", time:"Mie 9:00 AM", status:"read" },
+      { id:2, text:"999.md: Ai primit 3 mesaje noi pentru anuntul tau. Intra pe 999.md pentru a raspunde.", from:"them", time:"Mie 2:15 PM", status:"read" },
+      { id:3, text:"999.md: Anuntul tau a fost activat si este vizibil pentru toti utilizatorii.", from:"them", time:"Mie 2:16 PM", status:"read" },
+    ],
+  },
+  {
+    id:11, name:"WhatsApp", preview:"Codul tau WhatsApp: 491-837", time:"Joi", unread:0,
+    messages:[
+      { id:1, text:"WhatsApp: Codul tau WhatsApp: 491-837. Nu il impartasi cu nimeni. rJbA/XP1K V", from:"them", time:"Joi 7:43 AM", status:"read" },
+      { id:2, text:"WhatsApp: Contul tau a fost inregistrat pe un dispozitiv nou. Daca nu esti tu, verifica securitatea contului.", from:"them", time:"Joi 7:44 AM", status:"read" },
+    ],
+  },
 ];
 
 const sf = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif";
 
-function Avatar({ name, size = 44 }) {
-  const cfg = AVATARS[name] || { bg: T.bgAvatar, initials: name?.[0]?.toUpperCase() || "?" };
+const slideTransition = {
+  type: "tween",
+  ease: "linear",
+  duration: 0.18,
+};
+
+/* Person silhouette SVG avatar — exactly like iOS default */
+function Avatar({ size = 44 }) {
+  const r = size / 2;
   return (
     <div style={{
-      width:size, height:size, borderRadius:"50%", background:cfg.bg,
-      display:"flex", alignItems:"center", justifyContent:"center",
-      fontSize:size*0.34, fontWeight:600, color:"#EBEBF5CC", flexShrink:0, fontFamily:sf,
-      letterSpacing:-0.3,
+      width: size, height: size, borderRadius: "50%",
+      background: "linear-gradient(180deg, #4A4A6A 0%, #2C2C4A 100%)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0, overflow: "hidden", position: "relative",
     }}>
-      {cfg.initials}
+      {/* Head */}
+      <div style={{
+        position: "absolute",
+        width: size * 0.38,
+        height: size * 0.38,
+        borderRadius: "50%",
+        background: "rgba(180,180,210,0.85)",
+        top: size * 0.18,
+        left: "50%",
+        transform: "translateX(-50%)",
+      }} />
+      {/* Body / shoulders */}
+      <div style={{
+        position: "absolute",
+        width: size * 0.72,
+        height: size * 0.44,
+        borderRadius: `${size * 0.36}px ${size * 0.36}px 0 0`,
+        background: "rgba(180,180,210,0.85)",
+        bottom: -size * 0.04,
+        left: "50%",
+        transform: "translateX(-50%)",
+      }} />
     </div>
   );
 }
@@ -122,6 +200,21 @@ function TypingDots() {
   );
 }
 
+/* Render bubble content — ticket messages get blue underlined number */
+function BubbleContent({ msg }) {
+  if (msg.msgType === "ticket") {
+    const { userText, code, date, time } = msg.ticketData;
+    return (
+      <span style={{ whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+        {"Bilet electronic nr.\n"}
+        <span style={{ color:"#1B84FF", textDecoration:"underline", fontWeight:500 }}>{code}</span>
+        {`\nData ${date} ora ${time}\nValabil 1 ora\nPret 7 MDL\nNumar de bord ${userText}`}
+      </span>
+    );
+  }
+  return <span style={{ whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{msg.text}</span>;
+}
+
 /* ── Conversation List ─────────────────────────────────────────── */
 function ConversationList({ conversations, onSelect, searchQuery, setSearchQuery }) {
   const filtered = conversations.filter(c =>
@@ -132,22 +225,17 @@ function ConversationList({ conversations, onSelect, searchQuery, setSearchQuery
   return (
     <div style={{ width:"100%", height:"100%", background:T.bgList, display:"flex", flexDirection:"column", fontFamily:sf, overflow:"hidden" }}>
 
-      {/* Header */}
       <div style={{ paddingTop:"env(safe-area-inset-top, 16px)", paddingLeft:16, paddingRight:16, paddingBottom:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <button style={{ background:"none", border:"none", cursor:"pointer", padding:"8px 0", fontSize:17, color:T.tint, fontFamily:sf }}>
-          Edit
-        </button>
+        <button style={{ background:"none", border:"none", cursor:"pointer", padding:"8px 0", fontSize:17, color:T.tint, fontFamily:sf }}>Edit</button>
         <button style={{ background:"none", border:"none", cursor:"pointer", padding:8 }}>
           <Edit size={20} strokeWidth={1.8} color={T.tint} />
         </button>
       </div>
 
-      {/* Large title */}
       <div style={{ padding:"2px 16px 8px" }}>
         <span style={{ fontSize:34, fontWeight:700, letterSpacing:-0.5, color:T.textPrim }}>Messages</span>
       </div>
 
-      {/* Search */}
       <div style={{ padding:"0 16px 8px" }}>
         <div style={{ background:T.bgSearch, borderRadius:10, display:"flex", alignItems:"center", padding:"8px 10px", gap:8 }}>
           <Search size={16} color={T.textSec} strokeWidth={2} />
@@ -166,7 +254,6 @@ function ConversationList({ conversations, onSelect, searchQuery, setSearchQuery
         </div>
       </div>
 
-      {/* List */}
       <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch" }}>
         {filtered.length === 0 && (
           <div style={{ textAlign:"center", padding:"48px 20px", color:T.textSec, fontSize:16 }}>No results</div>
@@ -182,16 +269,14 @@ function ConversationList({ conversations, onSelect, searchQuery, setSearchQuery
             style={{ cursor:"pointer" }}
           >
             <div style={{ display:"flex", alignItems:"center", padding:"11px 16px", gap:12, borderBottom:`0.5px solid ${T.separator}` }}>
-              {/* Avatar */}
               <div style={{ position:"relative", flexShrink:0 }}>
-                <Avatar name={conv.name} size={52} />
+                <Avatar size={52} />
                 {conv.unread > 0 && (
                   <div style={{ position:"absolute", top:-2, right:-2, background:T.unreadDot, borderRadius:"50%", width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff", border:`2px solid ${T.bgList}` }}>
                     {conv.unread}
                   </div>
                 )}
               </div>
-              {/* Text */}
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:2 }}>
                   <span style={{ fontSize:17, fontWeight: conv.unread>0 ? 600 : 400, color:T.textPrim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"64%" }}>
@@ -202,7 +287,7 @@ function ConversationList({ conversations, onSelect, searchQuery, setSearchQuery
                     <ChevronLeft size={15} color="#636366" style={{ transform:"rotate(180deg)" }} />
                   </div>
                 </div>
-                <span style={{ fontSize:15, color:T.textSec, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"block", fontWeight: conv.unread>0 ? 500 : 400 }}>
+                <span style={{ fontSize:15, color:T.textSec, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"block", textAlign:"left", fontWeight: conv.unread>0 ? 500 : 400 }}>
                   {conv.preview}
                 </span>
               </div>
@@ -238,7 +323,8 @@ function ChatView({ conversation, onBack, onSendMessage }) {
         setIsTyping(true);
         setTimeout(() => {
           setIsTyping(false);
-          onSendMessage(conversation.id, buildReply(conversation.id, text), "them");
+          const reply = buildReply(conversation.id, text);
+          onSendMessage(conversation.id, null, "them", reply);
         }, 1000);
       }, 400);
     }
@@ -246,8 +332,6 @@ function ChatView({ conversation, onBack, onSendMessage }) {
 
   const msgs = conversation.messages;
 
-  // Group messages: consecutive same-sender messages are grouped
-  // Only show timestamp above first message of a group, "Delivered/Read" below last "me" bubble
   const grouped = [];
   msgs.forEach((msg, i) => {
     const prev = msgs[i - 1];
@@ -257,16 +341,14 @@ function ChatView({ conversation, onBack, onSendMessage }) {
     grouped.push({ ...msg, isFirst, isLast });
   });
 
-  // Build items list with date separators
   const items = [];
   let lastDateLabel = null;
   grouped.forEach(msg => {
-    // Determine date label
     const t = msg.time || "";
     const label = t.includes("Ieri") ? "Ieri"
       : t.includes("Lun") ? "Luni"
       : t.includes("Mar") ? "Marti"
-      : (t.includes("AM") || t.includes("PM")) ? "iMessage\nToday " + t.split(" ").slice(-2).join(" ")
+      : (t.includes("AM") || t.includes("PM")) ? "Text Message • SMS\nToday " + t.split(" ").slice(-2).join(" ")
       : t.split(" ")[0];
 
     if (label !== lastDateLabel) {
@@ -276,7 +358,6 @@ function ChatView({ conversation, onBack, onSendMessage }) {
     items.push({ type:"msg", ...msg });
   });
 
-  // Helper: status label text (shown below last "me" bubble only)
   const getStatusLabel = (msg) => {
     if (msg.from !== "me") return null;
     if (msg.status === "read") return "Read";
@@ -284,60 +365,64 @@ function ChatView({ conversation, onBack, onSendMessage }) {
     return "Sent";
   };
 
+  const hasInput = input.length > 0;
+
   return (
-    <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", background:T.bg, fontFamily:sf }}>
+    <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", background:T.bg, fontFamily:sf, position:"relative" }}>
 
-      {/* ── Nav bar — matches screenshot exactly ── */}
+      {/* Floating back button — top left */}
+      <button
+        onClick={onBack}
+        style={{
+          position:"absolute",
+          top:"calc(env(safe-area-inset-top, 14px) + 8px)",
+          left:12,
+          background:"rgba(40,40,40,0.82)",
+          backdropFilter:"blur(12px)",
+          WebkitBackdropFilter:"blur(12px)",
+          border:"none", borderRadius:20,
+          display:"flex", alignItems:"center",
+          gap:2, padding:"6px 14px 6px 8px",
+          cursor:"pointer",
+          zIndex:10,
+        }}
+      >
+        <ChevronLeft size={22} strokeWidth={2.4} color="#FFFFFF" />
+        <span style={{ fontSize:17, fontWeight:400, color:"#FFFFFF", fontFamily:sf }}>53</span>
+      </button>
+
+      {/* Floating avatar + name — centered at top */}
       <div style={{
-        background:"#1C1C1E",
-        borderBottom:`0.5px solid ${T.separator}`,
-        paddingTop:"env(safe-area-inset-top, 14px)",
-        paddingBottom:10,
-        display:"flex", alignItems:"center", flexShrink:0,
-        position:"relative",
+        position:"absolute",
+        top:"calc(env(safe-area-inset-top, 14px) + 6px)",
+        left:0, right:0,
+        display:"flex", flexDirection:"column", alignItems:"center", gap:6,
+        zIndex:9,
+        pointerEvents:"none",
       }}>
-        {/* Back button */}
-        <button
-          onClick={onBack}
-          style={{
-            background:"none", border:"none", cursor:"pointer",
-            display:"flex", alignItems:"center", color:T.tint,
-            gap:1, padding:"4px 4px 4px 2px",
-            position:"absolute", left:6, top:"50%", transform:"translateY(-50%)",
-            zIndex:2,
-          }}
-        >
-          <ChevronLeft size={28} strokeWidth={2.2} color={T.tint} />
-        </button>
-
-        {/* Center: avatar + name + chevron */}
-        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, paddingTop:2 }}>
-          <Avatar name={conversation.name} size={38} />
-          <div style={{ display:"flex", alignItems:"center", gap:2 }}>
-            <span style={{ fontSize:12, fontWeight:600, color:T.textPrim, letterSpacing:-0.1 }}>
-              {conversation.name}
-            </span>
-            <ChevronLeft size={11} color={T.textSec} style={{ transform:"rotate(180deg)", marginTop:0.5 }} />
-          </div>
-        </div>
-
-        {/* Video icon — top right, outlined square with triangle (iMessage style) */}
-        <button style={{
-          background:"none", border:"none", cursor:"pointer",
-          padding:"4px 14px 4px 8px",
-          position:"absolute", right:0, top:"50%", transform:"translateY(-50%)",
+        <Avatar size={60} />
+        {/* Floating name pill */}
+        <div style={{
+          background:"rgba(40,40,40,0.82)",
+          backdropFilter:"blur(12px)",
+          WebkitBackdropFilter:"blur(12px)",
+          borderRadius:16,
+          display:"flex", alignItems:"center",
+          gap:4, padding:"4px 12px 4px 10px",
         }}>
-          <Video size={22} color={T.tint} strokeWidth={1.8} />
-        </button>
+          <span style={{ fontSize:15, fontWeight:600, color:T.textPrim, fontFamily:sf, letterSpacing:-0.2 }}>
+            {conversation.name}
+          </span>
+          <ChevronLeft size={11} color={T.textSec} style={{ transform:"rotate(180deg)" }} />
+        </div>
       </div>
 
-      {/* ── Messages ── */}
-      <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", padding:"4px 0 8px" }}>
+      {/* Messages — padded top to clear the floating header (avatar 60 + pill ~32 + gaps + safe area) */}
+      <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", padding:"4px 0 8px", paddingTop:"calc(env(safe-area-inset-top, 14px) + 112px)" }}>
 
-        {/* Empty state */}
         {items.length === 0 && (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:10, paddingBottom:60 }}>
-            <Avatar name={conversation.name} size={72} />
+            <Avatar size={72} />
             <span style={{ fontSize:20, fontWeight:600, color:T.textPrim }}>{conversation.name}</span>
             <span style={{ fontSize:14, color:T.textSec }}>No messages</span>
           </div>
@@ -345,7 +430,6 @@ function ChatView({ conversation, onBack, onSendMessage }) {
 
         {items.map((item, idx) =>
           item.type === "date" ? (
-            /* Date / channel label — matches "iMessage\nToday 1:53 PM" */
             <div key={`d${idx}`} style={{
               textAlign:"center",
               margin:"14px 0 10px",
@@ -372,41 +456,27 @@ function ChatView({ conversation, onBack, onSendMessage }) {
                 display:"flex",
                 flexDirection: item.from==="me" ? "row-reverse" : "row",
                 alignItems:"flex-end",
-                /* tighter vertical gaps within group, small gap between groups */
-                padding: item.isFirst
-                  ? `${item.from==="me" ? "6" : "6"}px 12px 1px`
-                  : "1px 12px 1px",
+                padding: item.isFirst ? "6px 12px 1px" : "1px 12px 1px",
                 gap:6,
               }}
             >
-              {/* No avatar shown in 1:1 chats (matches screenshot) */}
-              {/* Bubble */}
               <div style={{ maxWidth:"75%", display:"flex", flexDirection:"column", alignItems: item.from==="me" ? "flex-end" : "flex-start" }}>
                 <div style={{
                   background: item.from==="me" ? T.bgBubbleOut : T.bgBubbleIn,
                   color: item.from==="me" ? T.textBubOut : T.textBubIn,
-                  /* Tail: on last bubble of group only */
                   borderRadius: item.from==="me"
                     ? (item.isLast ? "20px 20px 5px 20px" : "20px 20px 20px 20px")
                     : (item.isLast ? "20px 20px 20px 5px" : "20px 20px 20px 20px"),
                   padding:"9px 14px",
                   fontSize:17,
                   lineHeight:1.4,
-                  wordBreak:"break-word",
-                  whiteSpace:"pre-wrap",
+                  textAlign: "left",
                 }}>
-                  {item.text}
+                  <BubbleContent msg={item} />
                 </div>
 
-                {/* "Delivered" / "Read" label — only on the very last outgoing bubble */}
                 {item.isLast && item.from === "me" && (
-                  <div style={{
-                    fontSize:12,
-                    color:T.textSec,
-                    marginTop:3,
-                    paddingRight:2,
-                    letterSpacing:-0.1,
-                  }}>
+                  <div style={{ fontSize:12, color:T.textSec, marginTop:3, paddingRight:2, letterSpacing:-0.1 }}>
                     {getStatusLabel(item)}
                   </div>
                 )}
@@ -415,7 +485,6 @@ function ChatView({ conversation, onBack, onSendMessage }) {
           )
         )}
 
-        {/* Typing indicator */}
         <AnimatePresence>
           {isTyping && (
             <motion.div key="typing" initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}>
@@ -429,7 +498,7 @@ function ChatView({ conversation, onBack, onSendMessage }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Input bar — matches screenshot exactly ── */}
+      {/* Input bar */}
       <div style={{
         background:T.bgInput,
         borderTop:`0.5px solid ${T.separator}`,
@@ -437,16 +506,14 @@ function ChatView({ conversation, onBack, onSendMessage }) {
         paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))",
         display:"flex", alignItems:"flex-end", gap:10, flexShrink:0,
       }}>
-        {/* + button */}
         <button style={{
           background:"rgba(255,255,255,0.1)", border:"none", borderRadius:"50%",
           width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center",
           cursor:"pointer", flexShrink:0, marginBottom:1,
         }}>
-          <Plus size={20} color={T.tint} strokeWidth={2.5} />
+        <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
         </button>
 
-        {/* Text field pill */}
         <div style={{
           flex:1,
           background:"transparent",
@@ -462,7 +529,7 @@ function ChatView({ conversation, onBack, onSendMessage }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key==="Enter" && handleSend()}
-            placeholder="iMessage"
+            placeholder="Text Message • SMS"
             style={{
               flex:1, border:"none", background:"transparent",
               fontSize:17, color:T.textPrim, outline:"none",
@@ -471,35 +538,25 @@ function ChatView({ conversation, onBack, onSendMessage }) {
           />
         </div>
 
-        {/* Right action button — mic when empty, send when typing */}
-        <AnimatePresence mode="wait">
-          {input ? (
-            <motion.button key="send"
-              initial={{ scale:0 }} animate={{ scale:1 }} exit={{ scale:0 }}
-              transition={{ type:"spring", stiffness:400, damping:22 }}
-              onClick={handleSend}
-              style={{
-                background:T.tint, border:"none", borderRadius:"50%",
-                width:34, height:34, display:"flex", alignItems:"center",
-                justifyContent:"center", cursor:"pointer", flexShrink:0,
-              }}
-            >
+        <div style={{ width:34, height:34, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {hasInput ? (
+            <button onClick={handleSend} style={{
+              background:T.tint, border:"none", borderRadius:"50%",
+              width:34, height:34, display:"flex", alignItems:"center",
+              justifyContent:"center", cursor:"pointer",
+            }}>
               <Send size={16} color="#fff" strokeWidth={2.2} style={{ transform:"translateX(1px) translateY(-1px)" }} />
-            </motion.button>
+            </button>
           ) : (
-            <motion.button key="mic"
-              initial={{ scale:0 }} animate={{ scale:1 }} exit={{ scale:0 }}
-              transition={{ type:"spring", stiffness:400, damping:22 }}
-              style={{
-                background:"none", border:"none", borderRadius:"50%",
-                width:34, height:34, display:"flex", alignItems:"center",
-                justifyContent:"center", cursor:"pointer", flexShrink:0,
-              }}
-            >
+            <button style={{
+              background:"none", border:"none", borderRadius:"50%",
+              width:34, height:34, display:"flex", alignItems:"center",
+              justifyContent:"center", cursor:"pointer",
+            }}>
               <Mic size={22} color={T.textSec} strokeWidth={1.8} />
-            </motion.button>
+            </button>
           )}
-        </AnimatePresence>
+        </div>
       </div>
     </div>
   );
@@ -516,16 +573,19 @@ export default function App() {
     setActiveId(conv.id);
   };
 
-  const handleSendMessage = (convId, text, from="me") => {
+  const handleSendMessage = (convId, text, from="me", ticketData=null) => {
     const now = new Date();
     const h = now.getHours(), m = String(now.getMinutes()).padStart(2,"0");
     const timeStr = `${h%12||12}:${m} ${h<12?"AM":"PM"}`;
     setConversations(prev => prev.map(c => {
       if (c.id!==convId) return c;
+      const newMsg = ticketData
+        ? { id:Date.now()+Math.random(), msgType:"ticket", ticketData, text:`Bilet ${ticketData.code}`, from, time:timeStr, status:"read" }
+        : { id:Date.now()+Math.random(), text, from, time:timeStr, status:from==="me"?"delivered":"read" };
       return {
         ...c,
-        messages:[...c.messages, { id:Date.now()+Math.random(), text, from, time:timeStr, status:from==="me"?"delivered":"read" }],
-        preview: text,
+        messages:[...c.messages, newMsg],
+        preview: newMsg.text,
         time: "Now",
       };
     }));
@@ -539,7 +599,7 @@ export default function App() {
         {activeConv ? (
           <motion.div key={`chat-${activeConv.id}`}
             initial={{ x:"100%" }} animate={{ x:0 }} exit={{ x:"100%" }}
-            transition={{ type:"spring", stiffness:360, damping:36, mass:0.9 }}
+            transition={slideTransition}
             style={{ position:"absolute", inset:0 }}
           >
             <ChatView conversation={activeConv} onBack={() => setActiveId(null)} onSendMessage={handleSendMessage} />
@@ -547,7 +607,7 @@ export default function App() {
         ) : (
           <motion.div key="list"
             initial={{ x:"-30%" }} animate={{ x:0 }} exit={{ x:"-30%" }}
-            transition={{ type:"spring", stiffness:360, damping:36, mass:0.9 }}
+            transition={slideTransition}
             style={{ position:"absolute", inset:0 }}
           >
             <ConversationList conversations={conversations} onSelect={handleSelect} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
