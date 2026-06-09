@@ -9,7 +9,7 @@ const T = {
   bg:         "#000000",
   bgList:     "#000000",
   bgNav:      "#1C1C1E",
-  bgInput:    "#1C1C1E",
+  bgInput:    "#000000",
   bgSearch:   "#1C1C1E",
   bgBubbleIn: "#2C2C2E",
   bgBubbleOut:"#34C759",   // green — SMS style like screenshot
@@ -68,13 +68,15 @@ const INITIAL_CONVERSATIONS = [
     ],
   },
   {
-    id:3, name:"Nica", preview:"vii maine sau nu?", time:"9:38 AM", unread:2,
+    id:3, name:"Andrei", preview:"vnature nus", time:"9:38 AM", unread:2,
     messages:[
-      { id:1, text:"salut, ce faci?", from:"them", time:"9:10 AM", status:"read" },
-      { id:2, text:"bine bine, tu?", from:"me", time:"9:12 AM", status:"read" },
-      { id:3, text:"si eu ok. mergi azi la sala?", from:"them", time:"9:13 AM", status:"read" },
-      { id:4, text:"nu stiu inca, poate seara", from:"me", time:"9:15 AM", status:"read" },
-      { id:5, text:"vii maine sau nu?", from:"them", time:"9:38 AM", status:"delivered" },
+      { id:1, text:"Rtec trebu sa bage conditionere in trolice", from:"them", time:"9:10 AM", status:"read" },
+      { id:2, text:"da uai parca is in parelca", from:"me", time:"9:42 AM", status:"read" },
+      { id:3, text:"asta si zic uai, ce de facut?", from:"them", time:"9:53 AM", status:"read" },
+      { id:4, text:"aplicatia asta zic ca ii destul", from:"me", time:"9:59 AM", status:"read" },
+      { id:4, text:"rtec nu is sanatosi", from:"them", time:"10:01 AM", status:"read" },
+     { id:4, text:"vnature nus", from:"me", time:"10:11 AM", status:"read" },
+ 
     ],
   },
   {
