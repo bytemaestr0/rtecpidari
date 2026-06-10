@@ -214,8 +214,8 @@ function BubbleContent({ msg }) {
     const { userText, code, date, time } = msg.ticketData;
     return (
       <span style={{ whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
-        {"Bilet electronic nr.\n"}
-        <span style={{ color:"#1B84FF", textDecoration:"underline", fontWeight:500 }}>{code}</span>
+        {"Bilet electronic nr. "}
+        <span style={{ color:"1B84FF", textDecoration:"underline", fontWeight:500 }}>{code}</span>
         {`\n Data ${date} ora ${time}\n Valabil 1 ora\n Pret 7 MDL\n Numar de bord ${userText}`}
       </span>
     );
