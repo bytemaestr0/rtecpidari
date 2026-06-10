@@ -146,13 +146,14 @@ const sf = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 
 
 const slideInTransition = {
   type: "tween",
-  ease: [0.32, 0.72, 0, 1],
-  duration: 0.35,
+  ease: "linear",
+  duration: 0.45,
 };
+
 const slideOutTransition = {
   type: "tween",
-  ease: [0.32, 0.72, 0, 1],
-  duration: 0.35,
+  ease: "linear",
+  duration: 0.45,
 };
 
 /* Person silhouette SVG avatar — exactly like iOS default */
