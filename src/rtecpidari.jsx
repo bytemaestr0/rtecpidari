@@ -147,7 +147,7 @@ const sf = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 
 const slideInTransition = {
   type: "tween",
   ease: "linear",
-  duration: 0.45,
+  duration: 0.00,
 };
 
 const slideOutTransition = {
