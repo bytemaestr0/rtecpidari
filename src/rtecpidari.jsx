@@ -215,7 +215,7 @@ function BubbleContent({ msg }) {
     return (
       <span style={{ whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
         {"Bilet electronic nr. "}
-        <span style={{ color:"1B84FF", textDecoration:"underline", fontWeight:500 }}>{code}</span>
+        <span style={{ color:"#1B84FF", textDecoration:"underline", fontWeight:500 }}>{code}</span>
         {`\n Data ${date} ora ${time}\n Valabil 1 ora\n Pret 7 MDL\n Numar de bord ${userText}`}
       </span>
     );
