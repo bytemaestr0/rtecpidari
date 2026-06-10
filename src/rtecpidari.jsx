@@ -144,10 +144,15 @@ const INITIAL_CONVERSATIONS = [
 
 const sf = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif";
 
-const slideTransition = {
+const slideInTransition = {
   type: "tween",
-  ease: "linear",
-  duration: 0.18,
+  ease: [0.32, 0.72, 0, 1],
+  duration: 0.35,
+};
+const slideOutTransition = {
+  type: "tween",
+  ease: [0.32, 0.72, 0, 1],
+  duration: 0.35,
 };
 
 /* Person silhouette SVG avatar — exactly like iOS default */
@@ -306,7 +311,9 @@ function ConversationList({ conversations, onSelect, searchQuery, setSearchQuery
 function ChatView({ conversation, onBack, onSendMessage }) {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
   const isBot = conversation.name==="7000" || conversation.name==="7001";
 
@@ -372,55 +379,88 @@ function ChatView({ conversation, onBack, onSendMessage }) {
   return (
     <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", background:T.bg, fontFamily:sf, position:"relative" }}>
 
-      {/* Floating back button — top left */}
-      <button
-        onClick={onBack}
-        style={{
-          position:"absolute",
-          top:"calc(env(safe-area-inset-top, 14px) + 8px)",
-          left:12,
-          background:"rgba(40,40,40,0.82)",
-          backdropFilter:"blur(12px)",
-          WebkitBackdropFilter:"blur(12px)",
-          border:"none", borderRadius:20,
-          display:"flex", alignItems:"center",
-          gap:2, padding:"6px 14px 6px 8px",
-          cursor:"pointer",
-          zIndex:10,
-        }}
-      >
-        <ChevronLeft size={22} strokeWidth={2.4} color="#FFFFFF" />
-        <span style={{ fontSize:17, fontWeight:400, color:"#FFFFFF", fontFamily:sf }}>53</span>
-      </button>
-
-      {/* Floating avatar + name — centered at top */}
+      {/* Header — compact when keyboard open, expanded otherwise */}
       <div style={{
-        position:"absolute",
-        top:"calc(env(safe-area-inset-top, 14px) + 6px)",
-        left:0, right:0,
-        display:"flex", flexDirection:"column", alignItems:"center", gap:6,
-        zIndex:9,
-        pointerEvents:"none",
+        flexShrink:0,
+        background: inputFocused ? "rgba(28,28,30,0.95)" : "transparent",
+        backdropFilter: inputFocused ? "blur(20px)" : "none",
+        WebkitBackdropFilter: inputFocused ? "blur(20px)" : "none",
+        borderBottom: inputFocused ? `0.5px solid ${T.separator}` : "none",
+        paddingTop:"env(safe-area-inset-top, 14px)",
+        transition:"all 0.25s ease",
+        zIndex:10,
+        position: inputFocused ? "relative" : "absolute",
+        left:0, right:0, top:0,
       }}>
-        <Avatar size={60} />
-        {/* Floating name pill */}
-        <div style={{
-          background:"rgba(40,40,40,0.82)",
-          backdropFilter:"blur(12px)",
-          WebkitBackdropFilter:"blur(12px)",
-          borderRadius:16,
-          display:"flex", alignItems:"center",
-          gap:4, padding:"4px 12px 4px 10px",
-        }}>
-          <span style={{ fontSize:15, fontWeight:600, color:T.textPrim, fontFamily:sf, letterSpacing:-0.2 }}>
-            {conversation.name}
-          </span>
-          <ChevronLeft size={11} color={T.textSec} style={{ transform:"rotate(180deg)" }} />
-        </div>
+        {inputFocused ? (
+          /* Compact header row when keyboard is open */
+          <div style={{ display:"flex", alignItems:"center", padding:"8px 12px", gap:8 }}>
+            <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:2, padding:"4px 0" }}>
+              <ChevronLeft size={22} strokeWidth={2.4} color="#FFFFFF" />
+              <span style={{ fontSize:17, fontWeight:400, color:"#FFFFFF", fontFamily:sf }}>53</span>
+            </button>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
+              <span style={{ fontSize:17, fontWeight:600, color:T.textPrim, fontFamily:sf, letterSpacing:-0.2 }}>{conversation.name}</span>
+            </div>
+            {/* spacer to balance back button */}
+            <div style={{ width:44 }} />
+          </div>
+        ) : (
+          /* Expanded floating header when keyboard is closed */
+          <div style={{ padding:"6px 0 12px" }}>
+            <button onClick={onBack} style={{
+              position:"absolute",
+              top:"calc(env(safe-area-inset-top, 14px) + 8px)",
+              left:12,
+              background:"rgba(40,40,40,0.82)",
+              backdropFilter:"blur(12px)",
+              WebkitBackdropFilter:"blur(12px)",
+              border:"none", borderRadius:20,
+              display:"flex", alignItems:"center",
+              gap:2, padding:"6px 14px 6px 8px",
+              cursor:"pointer",
+              zIndex:11,
+            }}>
+              <ChevronLeft size={22} strokeWidth={2.4} color="#FFFFFF" />
+              <span style={{ fontSize:17, fontWeight:400, color:"#FFFFFF", fontFamily:sf }}>53</span>
+            </button>
+
+            <div style={{
+              display:"flex", flexDirection:"column", alignItems:"center", gap:6,
+              paddingTop:8,
+            }}>
+              <Avatar size={60} />
+              <div style={{
+                background:"rgba(40,40,40,0.82)",
+                backdropFilter:"blur(12px)",
+                WebkitBackdropFilter:"blur(12px)",
+                borderRadius:16,
+                display:"flex", alignItems:"center",
+                gap:4, padding:"4px 12px 4px 10px",
+              }}>
+                <span style={{ fontSize:15, fontWeight:600, color:T.textPrim, fontFamily:sf, letterSpacing:-0.2 }}>
+                  {conversation.name}
+                </span>
+                <ChevronLeft size={11} color={T.textSec} style={{ transform:"rotate(180deg)" }} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Messages — padded top to clear the floating header (avatar 60 + pill ~32 + gaps + safe area) */}
-      <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", padding:"4px 0 8px", paddingTop:"calc(env(safe-area-inset-top, 14px) + 112px)" }}>
+      {/* Messages — fills remaining space and scrolls */}
+      <div
+        ref={messagesContainerRef}
+        style={{
+          flex:1,
+          overflowY:"auto",
+          overflowX:"hidden",
+          WebkitOverflowScrolling:"touch",
+          padding:"4px 0 8px",
+          paddingTop: inputFocused ? "8px" : "calc(env(safe-area-inset-top, 14px) + 112px)",
+          minHeight:0,
+        }}
+      >
 
         {items.length === 0 && (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:10, paddingBottom:60 }}>
@@ -531,6 +571,8 @@ function ChatView({ conversation, onBack, onSendMessage }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key==="Enter" && handleSend()}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
             placeholder="Text Message • SMS"
             style={{
               flex:1, border:"none", background:"transparent",
@@ -597,22 +639,23 @@ export default function App() {
 
   return (
     <div style={{ position:"fixed", inset:0, width:"100%", height:"100%", fontFamily:sf, background:T.bg, overflow:"hidden" }}>
-      <AnimatePresence mode="wait">
-        {activeConv ? (
-          <motion.div key={`chat-${activeConv.id}`}
-            initial={{ x:"100%" }} animate={{ x:0 }} exit={{ x:"100%" }}
-            transition={slideTransition}
-            style={{ position:"absolute", inset:0 }}
+      {/* List always rendered underneath */}
+      <div style={{ position:"absolute", inset:0 }}>
+        <ConversationList conversations={conversations} onSelect={handleSelect} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+      </div>
+
+      {/* Chat slides on top */}
+      <AnimatePresence>
+        {activeConv && (
+          <motion.div
+            key={`chat-${activeConv.id}`}
+            initial={{ x:"100%" }}
+            animate={{ x:0 }}
+            exit={{ x:"100%" }}
+            transition={slideInTransition}
+            style={{ position:"absolute", inset:0, willChange:"transform" }}
           >
             <ChatView conversation={activeConv} onBack={() => setActiveId(null)} onSendMessage={handleSendMessage} />
-          </motion.div>
-        ) : (
-          <motion.div key="list"
-            initial={{ x:"-30%" }} animate={{ x:0 }} exit={{ x:"-30%" }}
-            transition={slideTransition}
-            style={{ position:"absolute", inset:0 }}
-          >
-            <ConversationList conversations={conversations} onSelect={handleSelect} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
           </motion.div>
         )}
       </AnimatePresence>
