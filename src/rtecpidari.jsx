@@ -21,9 +21,8 @@ const T = {
   tint:       "#1B84FF",
   unreadDot:  "#1B84FF",
 };
-
-const sessionCodes = {};
-
+const sessionCodes =
+  JSON.parse(localStorage.getItem("sessionCodes") || "{}");
 function fmt2(n) { return String(n).padStart(2, "0"); }
 function formatDateTime(date) {
   const data = `${fmt2(date.getDate())}.${fmt2(date.getMonth()+1)}.${date.getFullYear()}`;
@@ -35,6 +34,10 @@ function buildReply(convId, userText) {
     sessionCodes[convId] = { baseCode: Math.floor(1000 + Math.random() * 9000), count: 0 };
   } else {
     sessionCodes[convId].count += 1;
+  localStorage.setItem(
+  "sessionCodes",
+  JSON.stringify(sessionCodes)
+);
   }
   const code = sessionCodes[convId].baseCode + sessionCodes[convId].count;
   const now = new Date();
@@ -555,12 +558,61 @@ function ChatView({ conversation, onBack, onSendMessage }) {
 }
 
 export default function App() {
-  const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
+  const [conversations, setConversations] = useState(() => {
+  const saved = localStorage.getItem("messages");
+  useEffect(() => {
+  localStorage.setItem("messages", JSON.stringify(conversations));
+}, [conversations]);
+  if (saved) {
+    return JSON.parse(saved);
+  }
+
+  return INITIAL_CONVERSATIONS;
+  });
   const [activeId, setActiveId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleSelect = conv => {
-    setConversations(prev => prev.map(c => c.id===conv.id ? { ...c, unread:0 } : c));
+    setConversations(prev => {
+    const updated = prev.map(c => {
+        if (c.id !== convId) return c;
+
+        const newMsg = ticketData
+            ? {
+                id: Date.now() + Math.random(),
+                msgType: "ticket",
+                ticketData,
+                text: `Bilet ${ticketData.code}`,
+                from,
+                time: timeStr,
+                status: "read"
+            }
+            : {
+                id: Date.now() + Math.random(),
+                text,
+                from,
+                time: timeStr,
+                status: from === "me" ? "delivered" : "read"
+            };
+
+        return {
+            ...c,
+            messages: [...c.messages, newMsg],
+            preview: newMsg.text,
+            time: "Now"
+        };
+    });
+
+    const index = updated.findIndex(c => c.id === convId);
+
+    const conv = updated[index];
+
+    updated.splice(index, 1);
+
+    updated.unshift(conv);
+
+    return updated;
+});
     setActiveId(conv.id);
   };
 
