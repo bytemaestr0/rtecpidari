@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Search, Edit, ArrowUp, Mic, Plus } from "lucide-react";
 
 const T = {
   bg:"#000000", bgList:"#000000", bgNav:"#1C1C1E", bgInput:"#000000",
-  bgSearch:"#1C1C1E", bgBubbleIn:"#2C2C2E", bgBubbleOut:"#34C759",
+  bgSearch:"#1C1C1E", bgBubbleIn:"#262628", bgBubbleOut:"#32D65A", bgPill:"#191919", pillBorder:"rgba(255,255,255,0.18)",
   bgAvatar:"#3A3A5C", separator:"rgba(255,255,255,0.08)",
   textPrim:"#FFFFFF", textSec:"#8E8E93", textBubIn:"#FFFFFF", textBubOut:"#FFFFFF",
   tint:"#1B84FF", unreadDot:"#1B84FF",
@@ -20,6 +20,74 @@ function formatDateTime(date) {
   const data = `${fmt2(date.getDate())}.${fmt2(date.getMonth()+1)}.${date.getFullYear()}`;
   const ora  = `${fmt2(date.getHours())}:${fmt2(date.getMinutes())}`;
   return { data, ora };
+}
+const WEEKDAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function sameDay(a, b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+// "1:53 PM" -> "13:53"
+function to24(t) {
+  const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/.exec(t || "");
+  if (!m) return t;
+  let h = parseInt(m[1], 10) % 12;
+  if (m[3] === "PM") h += 12;
+  return `${fmt2(h)}:${m[2]}`;
+}
+function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+// Which calendar day a message belongs to (messages from the same day share a key,
+// so no date/time separator is drawn between them).
+function dayKey(msg) {
+  const d = new Date(msg.ts || Date.now());
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+// Label above the first message of a day:
+//   today -> "Today at 17:34", previous day -> "Yesterday at 12:19", older -> "Wed 10. Jun at 00:32"
+function dayLabel(msg) {
+  const d = new Date(msg.ts || Date.now());
+  const days = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  const hm = `${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;
+  const when = days === 0 ? `Today at ${hm}`
+    : days === 1 ? `Yesterday at ${hm}`
+    : `${WEEKDAYS[d.getDay()]} ${d.getDate()}. ${MONTHS[d.getMonth()]} at ${hm}`;
+  return `Text Message • SMS\n${when}`;
+}
+
+// Older saved messages only have a text time ("Ieri 3:10 PM", "Lun 11:22 AM", "1:53 PM").
+// Give each one a real timestamp so its day can be worked out correctly.
+const RO_WEEKDAYS = { Dum:0, Lun:1, Mar:2, Mie:3, Joi:4, Vin:5, Sam:6 };
+function migrateConversations(convs) {
+  const now = new Date();
+  const withTime = (day, t) => {
+    const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/.exec(t || "");
+    const d = new Date(day);
+    if (m) { d.setHours((parseInt(m[1], 10) % 12) + (m[3] === "PM" ? 12 : 0), parseInt(m[2], 10), 0, 0); }
+    return d.getTime();
+  };
+  const ticketTs = (c) => {
+    const tm = c.messages.find(x => x.ticketData && /^\d{2}\.\d{2}\.\d{4}$/.test(x.ticketData.date || ""));
+    if (!tm) return null;
+    const [dd, mm, yy] = tm.ticketData.date.split(".").map(Number);
+    const [hh, mi] = (tm.ticketData.time || "0:0").split(":").map(Number);
+    return new Date(yy, mm - 1, dd, hh || 0, mi || 0).getTime();
+  };
+  return convs.map(c => {
+    if (c.messages.every(m => m.ts)) return c;
+    const anchor = ticketTs(c); // 7000/7001: the whole exchange belongs to the ticket's date/time
+    return { ...c, messages: c.messages.map(m => {
+      if (m.ts) return m;
+      const t = m.time || "";
+      let ts;
+      if (anchor) ts = anchor;
+      else if (t.includes("Ieri")) { const d = startOfDay(now); d.setDate(d.getDate() - 1); ts = withTime(d, t); }
+      else if (RO_WEEKDAYS[t.split(" ")[0]] !== undefined) {
+        const d = startOfDay(now); d.setDate(d.getDate() - 1);
+        while (d.getDay() !== RO_WEEKDAYS[t.split(" ")[0]]) d.setDate(d.getDate() - 1);
+        ts = withTime(d, t);
+      } else ts = withTime(startOfDay(now), t);
+      return { ...m, ts };
+    }) };
+  });
 }
 function buildReply(convId, userText) {
   if (!sessionCodes[convId]) {
@@ -38,7 +106,7 @@ function loadConversations() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return migrateConversations(parsed);
     }
   } catch(e) {}
   return null;
@@ -52,7 +120,7 @@ const INITIAL_CONVERSATIONS = [
     id:1, name:"7000", preview:"Bilet 21670021", time:"13:53", unread:0, lastMsgAt:1749550380000,
     messages:[
       { id:1, text:"2167", from:"me", time:"1:53 PM", status:"read" },
-      { id:2, text:"Solicitare in curs de procesare.", from:"them", time:"1:53 PM", status:"read" },
+      { id:2, text:"Solicitarea este in curs de procesare.", from:"them", time:"1:53 PM", status:"read" },
       { id:3, msgType:"ticket", ticketData:{ userText:"2167", code:"21670021", date:"10.06.2026", time:"13:53" }, text:"Bilet 21670021", from:"them", time:"1:53 PM", status:"read" },
     ],
   },
@@ -60,7 +128,7 @@ const INITIAL_CONVERSATIONS = [
     id:2, name:"7001", preview:"Bilet 07930264", time:"13:53", unread:0, lastMsgAt:1749550320000,
     messages:[
       { id:1, text:"0793", from:"me", time:"11:58 PM", status:"read" },
-      { id:2, text:"Solicitare in curs de procesare.", from:"them", time:"11:58 PM", status:"read" },
+      { id:2, text:"Solicitarea este in curs de procesare.", from:"them", time:"11:58 PM", status:"read" },
       { id:3, msgType:"ticket", ticketData:{ userText:"2167", code:"07930264", date:"10.06.2026", time:"11:58" }, text:"Bilet 07930264", from:"them", time:"1:53 PM", status:"read" },
     ],
   },
@@ -139,10 +207,12 @@ const INITIAL_CONVERSATIONS = [
 ];
 
 function Avatar({ size = 44 }) {
+  // Matches the iOS "unknown contact" picture: violet gradient, white head + shoulders.
+  const head = size*0.36, bodyW = size*0.6;
   return (
-    <div style={{ width:size, height:size, borderRadius:"50%", background:"linear-gradient(180deg, #4A4A6A 0%, #2C2C4A 100%)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden", position:"relative" }}>
-      <div style={{ position:"absolute", width:size*0.38, height:size*0.38, borderRadius:"50%", background:"rgba(180,180,210,0.85)", top:size*0.18, left:"50%", transform:"translateX(-50%)" }}/>
-      <div style={{ position:"absolute", width:size*0.72, height:size*0.44, borderRadius:`${size*0.36}px ${size*0.36}px 0 0`, background:"rgba(180,180,210,0.85)", bottom:-size*0.04, left:"50%", transform:"translateX(-50%)" }}/>
+    <div style={{ width:size, height:size, minWidth:size, borderRadius:"50%", background:"linear-gradient(180deg, #5A566F 0%, #2E2949 100%)", flexShrink:0, overflow:"hidden", position:"relative", boxSizing:"border-box" }}>
+      <div style={{ position:"absolute", width:head, height:head, borderRadius:"50%", background:"#FFFFFF", top:size*0.2, left:"50%", transform:"translateX(-50%)" }}/>
+      <div style={{ position:"absolute", width:bodyW, height:size*0.45, borderRadius:`${bodyW/2}px ${bodyW/2}px 0 0 / ${size*0.14}px ${size*0.14}px 0 0`, background:"#FFFFFF", top:size*0.65, left:"50%", transform:"translateX(-50%)" }}/>
     </div>
   );
 }
@@ -167,7 +237,11 @@ function BubbleContent({ msg }) {
       <span style={{ whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
         {"Bilet electronic nr. "}
         <span style={{ color:"#1B84FF", textDecoration:"underline", fontWeight:500 }}>{code}</span>
-        {`\n Data ${date} ora ${time}\n Valabil 1 ora\n Pret 7 MDL\n Numar de bord ${userText}`}
+        {`\n Data ${date} ora ${time}\n Valabil `}
+        <u>1</u>
+        {` ora\n Pret `}
+        <u>7 MDL</u>
+        {`\n Numar de bord ${userText}`}
       </span>
     );
   }
@@ -249,24 +323,47 @@ function ConversationList({ conversations, onSelect, searchQuery, setSearchQuery
 function ChatView({ conversation, onBack, onSendMessage }) {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [inputFocused, setInputFocused] = useState(false);
-  const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const contentRef = useRef(null);
   const inputRef = useRef(null);
+  const stickRef = useRef(true); // keep the view pinned to the bottom unless the user scrolled up
+  const initialIds = useRef(new Set(conversation.messages.map(m => m.id))); // already there on open -> no entrance animation
   const isBot = conversation.name === "7000" || conversation.name === "7001";
 
+  // Jump to the latest message instantly when the chat opens.
+  useLayoutEffect(() => {
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+
+  // New bubbles / the typing indicator grow in smoothly (height animation). Following that
+  // growth frame by frame with a ResizeObserver keeps the scroll glued to the bottom, instead of
+  // restarting a smooth-scroll on every change (which is what made it snap).
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior:"smooth" });
-  }, [conversation.messages, isTyping]);
+    const el = messagesContainerRef.current, content = contentRef.current;
+    if (!el || !content || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (stickRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, []);
+
+  const handleScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   const handleSend = () => {
     const text = input.trim();
     if (!text) return;
     setInput("");
+    stickRef.current = true;
     onSendMessage(conversation.id, text, "me");
     if (isBot) {
       setTimeout(() => {
-        onSendMessage(conversation.id, "Solicitare in curs de procesare.", "them");
+        onSendMessage(conversation.id, "Solicitarea este in curs de procesare.", "them");
         setIsTyping(true);
         setTimeout(() => {
           setIsTyping(false);
@@ -278,107 +375,100 @@ function ChatView({ conversation, onBack, onSendMessage }) {
   };
 
   const msgs = conversation.messages;
-  const grouped = [];
-  msgs.forEach((msg, i) => {
+  const grouped = msgs.map((msg, i) => {
     const prev = msgs[i-1], next = msgs[i+1];
-    grouped.push({ ...msg, isFirst:!prev||prev.from!==msg.from, isLast:!next||next.from!==msg.from });
+    return { ...msg, isFirst:!prev||prev.from!==msg.from, isLast:!next||next.from!==msg.from };
   });
 
+  // Date separator only when the day changes (not between messages of the same day).
   const items = [];
-  let lastDateLabel = null;
+  let lastDay = null;
   grouped.forEach(msg => {
-    const t = msg.time || "";
-    const label = t.includes("Ieri") ? "Ieri"
-      : t.includes("Lun") ? "Luni"
-      : t.includes("Mar") ? "Marti"
-      : (t.includes("AM") || t.includes("PM")) ? "Text Message • SMS\nToday " + t.split(" ").slice(-2).join(" ")
-      : t.split(" ")[0];
-    if (label !== lastDateLabel) { items.push({ type:"date", label }); lastDateLabel = label; }
+    const key = dayKey(msg);
+    if (key !== lastDay) { items.push({ type:"date", id:`date-${msg.id}`, label:dayLabel(msg) }); lastDay = key; }
     items.push({ type:"msg", ...msg });
   });
 
-  const getStatusLabel = (msg) => {
-    if (msg.from !== "me") return null;
-    if (msg.status === "read") return "Read";
-    if (msg.status === "delivered") return "Delivered";
-    return "Sent";
-  };
-
   const hasInput = input.length > 0;
-  const FLOAT_TOP = "calc(env(safe-area-inset-top, 14px) + 8px)";
-  const MSG_PAD_TOP = "calc(env(safe-area-inset-top, 14px) + 100px)";
+  const HEADER_TOP = "calc(env(safe-area-inset-top, 14px) + 4px)";
+  const MSG_PAD_TOP = "calc(env(safe-area-inset-top, 14px) + 101px)";
+  const pillBorder = `1px solid ${T.pillBorder}`;
+  const growIn = (fresh) => ({
+    initial: fresh ? { opacity:0, height:0 } : false,
+    animate: { opacity:1, height:"auto" },
+    transition: { height:{ duration:0.32, ease:[0.22,1,0.36,1] }, opacity:{ duration:0.24, ease:"easeOut" } },
+  });
 
   return (
     <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", background:T.bg, fontFamily:sf, position:"relative" }}>
-      {/* Floating back pill */}
-      <button onClick={onBack} style={{ position:"absolute", top:FLOAT_TOP, left:12, zIndex:30, background:"rgba(44,44,46,0.82)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", border:"none", borderRadius:20, display:"flex", alignItems:"center", gap:2, padding:"6px 14px 6px 8px", cursor:"pointer" }}>
-        <ChevronLeft size={22} strokeWidth={2.4} color="#FFFFFF"/>
-        <span style={{ fontSize:17, fontWeight:400, color:"#FFFFFF", fontFamily:sf }}>53</span>
+      {/* Back pill with unread badge */}
+      <button onClick={onBack} style={{ position:"absolute", top:`calc(${HEADER_TOP} + 1px)`, left:16, zIndex:30, height:43, boxSizing:"border-box", background:T.bgPill, border:pillBorder, borderRadius:22, display:"flex", alignItems:"center", gap:10, padding:"0 17px 0 13px", cursor:"pointer" }}>
+        <svg width="11" height="18" viewBox="0 0 11 18" fill="none"><path d="M9 1.8L1.8 9L9 16.2" stroke="#FFFFFF" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        <span style={{ background:"#F2F2F2", color:"#1C1C1E", fontSize:16, fontWeight:600, lineHeight:"19px", height:19, minWidth:33, padding:"0 7px", boxSizing:"border-box", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:sf }}>109</span>
       </button>
-      {/* Floating avatar + name */}
-      <div style={{ position:"absolute", top:FLOAT_TOP, left:0, right:0, zIndex:29, display:"flex", flexDirection:"column", alignItems:"center", gap:4, pointerEvents:"none" }}>
-        <Avatar size={56}/>
-        <div style={{ background:"rgba(44,44,46,0.82)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRadius:16, display:"flex", alignItems:"center", gap:4, padding:"4px 10px", pointerEvents:"auto" }}>
-          <span style={{ fontSize:15, fontWeight:600, color:T.textPrim, fontFamily:sf, letterSpacing:-0.2 }}>{conversation.name}</span>
-          <ChevronLeft size={11} color={T.textSec} style={{ transform:"rotate(180deg)" }}/>
+      {/* Avatar + name pill */}
+      <div style={{ position:"absolute", top:HEADER_TOP, left:0, right:0, zIndex:29, display:"flex", flexDirection:"column", alignItems:"center", pointerEvents:"none" }}>
+        <Avatar size={60}/>
+        <div style={{ marginTop:-4, height:32, boxSizing:"border-box", background:T.bgPill, border:pillBorder, borderRadius:16, display:"flex", alignItems:"center", gap:4, padding:"0 10px 0 13px", pointerEvents:"auto", position:"relative" }}>
+          <span style={{ fontSize:17, fontWeight:700, color:T.textPrim, fontFamily:sf, letterSpacing:-0.2 }}>{conversation.name}</span>
+          <ChevronLeft size={12} strokeWidth={2.6} color={T.textSec} style={{ transform:"rotate(180deg)" }}/>
         </div>
       </div>
       {/* Messages area */}
-      <div ref={messagesContainerRef} style={{ flex:1, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", paddingTop:MSG_PAD_TOP, paddingBottom:"8px", minHeight:0 }}>
-        {items.map((item, idx) =>
-          item.type === "date" ? (
-            <div key={`d${idx}`} style={{ textAlign:"center", margin:"14px 0 10px", display:"flex", flexDirection:"column", gap:1 }}>
-              {item.label.split("\n").map((line, li) => (
-                <span key={li} style={{ fontSize:12, color:T.textSec, fontWeight:li===0?500:400, letterSpacing:li===0?0:-0.1 }}>{line}</span>
-              ))}
-            </div>
-          ) : (
-            <motion.div key={item.id} initial={{ opacity:0, y:6, scale:0.97 }} animate={{ opacity:1, y:0, scale:1 }}
-              transition={{ duration:0.16, ease:[0.25,0.46,0.45,0.94] }}
-              style={{ display:"flex", flexDirection:item.from==="me"?"row-reverse":"row", alignItems:"flex-end", padding:item.isFirst?"6px 12px 1px":"1px 12px 1px", gap:6 }}>
-              <div style={{ maxWidth:"75%", display:"flex", flexDirection:"column", alignItems:item.from==="me"?"flex-end":"flex-start" }}>
-                <div style={{ background:item.from==="me"?T.bgBubbleOut:T.bgBubbleIn, color:item.from==="me"?T.textBubOut:T.textBubIn,
-                  borderRadius:item.from==="me"?(item.isLast?"20px 20px 5px 20px":"20px"):(item.isLast?"20px 20px 20px 5px":"20px"),
-                  padding:"9px 14px", fontSize:17, lineHeight:1.4, textAlign:"left" }}>
-                  <BubbleContent msg={item}/>
-                </div>
-                {item.isLast && item.from === "me" && (
-                  <div style={{ fontSize:12, color:T.textSec, marginTop:3, paddingRight:2, letterSpacing:-0.1 }}>{getStatusLabel(item)}</div>
-                )}
+      <div ref={messagesContainerRef} onScroll={handleScroll} style={{ flex:1, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", paddingTop:MSG_PAD_TOP, paddingBottom:"8px", minHeight:0, overflowAnchor:"none" }}>
+        <div ref={contentRef}>
+          {items.map(item =>
+            item.type === "date" ? (
+              <div key={item.id} style={{ textAlign:"center", margin:"14px 0 0", display:"flex", flexDirection:"column" }}>
+                {item.label.split("\n").map((line, li) => (
+                  <span key={li} style={{ fontSize:11.5, lineHeight:"14px", color:T.textSec, fontWeight:400 }}>{line}</span>
+                ))}
               </div>
-            </motion.div>
-          )
-        )}
-        <AnimatePresence>
-          {isTyping && (
-            <motion.div key="typing" initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}>
-              <div style={{ display:"flex", alignItems:"flex-end", gap:6, padding:"2px 12px" }}><TypingDots/></div>
-            </motion.div>
+            ) : (
+              <motion.div key={item.id} {...growIn(!initialIds.current.has(item.id))} style={{ overflow:"hidden" }}>
+                <div style={{ display:"flex", flexDirection:item.from==="me"?"row-reverse":"row", alignItems:"flex-end", padding:`${item.isFirst?9:2}px 16px 2px` }}>
+                  <motion.div
+                    initial={initialIds.current.has(item.id) ? false : { y:10, scale:0.9 }}
+                    animate={{ y:0, scale:1 }}
+                    transition={{ type:"spring", stiffness:420, damping:34, mass:0.8 }}
+                    style={{ maxWidth:"75%", display:"flex", flexDirection:"column", alignItems:item.from==="me"?"flex-end":"flex-start", transformOrigin:item.from==="me"?"100% 100%":"0% 100%" }}>
+                    <div className={`bubble ${item.from==="me"?"out":"in"}${item.isLast?" tail":""}`}
+                      style={{ "--bubble-bg":item.from==="me"?T.bgBubbleOut:T.bgBubbleIn, background:item.from==="me"?T.bgBubbleOut:T.bgBubbleIn, color:T.textPrim,
+                        borderRadius:20, padding:"9px 15px 10px", fontSize:17, lineHeight:"21px", textAlign:"left" }}>
+                      <BubbleContent msg={item}/>
+                    </div>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )
           )}
-        </AnimatePresence>
-        <div ref={messagesEndRef}/>
+          <AnimatePresence initial={false}>
+            {isTyping && (
+              <motion.div key="typing" {...growIn(true)} exit={{ opacity:0, height:0, transition:{ duration:0.2, ease:"easeIn" } }} style={{ overflow:"hidden" }}>
+                <div style={{ display:"flex", alignItems:"flex-end", padding:"9px 16px 2px" }}><TypingDots/></div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
       {/* Input bar */}
-      <div style={{ background:T.bgInput, borderTop:`0.5px solid ${T.separator}`, padding:"8px 12px", paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))", display:"flex", alignItems:"flex-end", gap:10, flexShrink:0 }}>
-        <button style={{ background:"rgba(255,255,255,0.1)", border:"none", borderRadius:"50%", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, marginBottom:1 }}>
-          <Plus size={20} color="#FFFFFF" strokeWidth={2.5}/>
+      <div style={{ background:T.bgInput, padding:"8px 28px", paddingBottom:"max(12px, calc(env(safe-area-inset-bottom, 0px) - 4px))", display:"flex", alignItems:"center", gap:13, flexShrink:0 }}>
+        <button style={{ background:T.bgPill, border:pillBorder, borderRadius:"50%", width:39, height:39, boxSizing:"border-box", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, padding:0 }}>
+          <Plus size={22} color="#FFFFFF" strokeWidth={2.4}/>
         </button>
-        <div style={{ flex:1, background:"transparent", border:"1px solid #3A3A3C", borderRadius:22, display:"flex", alignItems:"center", padding:"4px 12px", minHeight:16, gap:6 }}>
+        <div style={{ flex:1, minWidth:0, height:39, boxSizing:"border-box", background:T.bgPill, border:pillBorder, borderRadius:20, display:"flex", alignItems:"center", padding:"0 4px 0 17px", gap:6 }}>
           <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSend()}
-            onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
             placeholder="Text Message • SMS"
-            style={{ flex:1, border:"none", background:"transparent", fontSize:17, color:T.textPrim, outline:"none", fontFamily:sf, lineHeight:1.4, minWidth:0 }}/>
-        </div>
-        <div style={{ width:34, height:34, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            style={{ flex:1, border:"none", background:"transparent", fontSize:17, color:T.textPrim, outline:"none", fontFamily:sf, minWidth:0, padding:0 }}/>
           {hasInput ? (
-            <button onClick={handleSend} style={{ background:"#34C759", border:"none", borderRadius:"50%", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
-              <ArrowUp size={18} color="#fff" strokeWidth={2.5}/>
+            <button onClick={handleSend} style={{ background:"#34C759", border:"none", borderRadius:"50%", width:30, height:30, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, padding:0 }}>
+              <ArrowUp size={18} color="#fff" strokeWidth={2.8}/>
             </button>
           ) : (
-            <button style={{ background:"none", border:"none", borderRadius:"50%", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
-              <Mic size={22} color={T.textSec} strokeWidth={1.8}/>
-            </button>
+            <div style={{ width:30, height:30, marginRight:12, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <Mic size={20} color={T.textSec} strokeWidth={1.8}/>
+            </div>
           )}
         </div>
       </div>
@@ -388,7 +478,7 @@ function ChatView({ conversation, onBack, onSendMessage }) {
 
 export default function App() {
   // Load from localStorage on first render, fall back to INITIAL_CONVERSATIONS
-  const [conversations, setConversations] = useState(() => loadConversations() ?? INITIAL_CONVERSATIONS);
+  const [conversations, setConversations] = useState(() => loadConversations() ?? migrateConversations(INITIAL_CONVERSATIONS));
   const [activeId, setActiveId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -410,8 +500,8 @@ export default function App() {
     setConversations(prev => prev.map(c => {
       if (c.id !== convId) return c;
       const newMsg = ticketData
-        ? { id:Date.now()+Math.random(), msgType:"ticket", ticketData, text:`Bilet ${ticketData.code}`, from, time:timeStr, status:"read" }
-        : { id:Date.now()+Math.random(), text, from, time:timeStr, status:from==="me"?"delivered":"read" };
+        ? { id:Date.now()+Math.random(), ts, msgType:"ticket", ticketData, text:`Bilet ${ticketData.code}`, from, time:timeStr, status:"read" }
+        : { id:Date.now()+Math.random(), ts, text, from, time:timeStr, status:from==="me"?"delivered":"read" };
       return { ...c, messages:[...c.messages, newMsg], preview:newMsg.text, time:"Now", lastMsgAt:ts };
     }));
   };

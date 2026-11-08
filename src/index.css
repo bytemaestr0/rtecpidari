@@ -109,3 +109,13 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ── iOS-style message bubble tails (page background is black) ── */
+.bubble { position: relative; }
+.bubble.tail::before,
+.bubble.tail::after { content: ""; position: absolute; bottom: 0; height: 20px; }
+.bubble.tail::after { height: 23px; } /* taller than ::before so no sub-pixel seam shows */
+.bubble.tail.out::before { right: -7px; width: 20px; background: var(--bubble-bg); border-bottom-left-radius: 16px 14px; }
+.bubble.tail.out::after  { right: -26px; width: 26px; background: #000; border-bottom-left-radius: 10px; }
+.bubble.tail.in::before  { left: -7px; width: 20px; background: var(--bubble-bg); border-bottom-right-radius: 16px 14px; }
+.bubble.tail.in::after   { left: -26px; width: 26px; background: #000; border-bottom-right-radius: 10px; }
